@@ -1,5 +1,5 @@
 # 需要的.o文件
-objs := main.o
+objs := main.o uart.o
 
 Crucis : $(objs)
 	arm-linux-gnueabihf-gcc -o Crucis $^
