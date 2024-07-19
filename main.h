@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <termios.h>
+#include <semaphore.h>
 
 
 int main(int argc,char *argv[]);

@@ -4,6 +4,8 @@
 tagUart_T Uart3;        //GPS数据串口
 tagUart_T Uart2;        //STM32数据串口
 
+char StartClpt[] = "StartClpt";     //i.mx6ull板启动完成提示
+
 /**
  * 信号处理函数，当串口有数据可以读时，会跳转该函数执行
 */
@@ -38,6 +40,7 @@ static void Uart3_handler(int sig,siginfo_t *info,void *context)
             memcpy(GNRMC,result,ret);
             printf("%s",GNRMC);
             //printf("%d",sizeof(test));
+            write(Uart2.fd,GNRMC,ret);        //暂时放外面，后续通过'A'进行发送
 
             if(GNRMC[18] == 'A')   //有效定位
             {
@@ -49,6 +52,7 @@ static void Uart3_handler(int sig,siginfo_t *info,void *context)
                 Latitude = strtod(LatitudeStr,NULL);
                 Longitude = strtod(LongitudeStr,NULL);               
                 printf("%d %c %4.5f %5.5f\n",ret,status,Latitude,Longitude);
+
             }
         }
     }
@@ -129,6 +133,7 @@ static void async_U2io_init(void)
 int main(int argc,char *argv[])
 {
     Uart_cfg_t cfg = {0};
+    pid_t ChildPid;     //子进程的PID
 
     cfg.baudrate = 38400;
     cfg.dbit = 8;
@@ -158,15 +163,40 @@ int main(int argc,char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    async_U2io_init();  //串口2异步方式初始化
-    async_U3io_init();  //串口3异步方式初始化
+    //async_U2io_init();  //串口2异步方式初始化
+    //async_U3io_init();  //串口3异步方式初始化
 
     printf("Wait read\n");
-    for(;;)
-    {
-        sleep(1);
-    } 
+    // for(;;)
+    // {
+    //     sleep(1);
+    // } 
 
+    //告知STM32已经启动完成
+    write(Uart2.fd,StartClpt,sizeof(StartClpt));
+    printf("I.MX6ULL Start\n");
+
+    switch(ChildPid = fork())
+    {
+        case -1:    /* 出错 */
+            perror("fork");
+        case 0:     /* 子进程 */
+            printf("ChildPid = %d\n",getpid());
+            async_U2io_init();  //串口2异步方式初始化
+            while(1)
+            {
+                sleep(1);       //进程挂起，可被信号打断
+            }
+            //_exit(EXIT_SUCCESS);
+        default:    /* 父进程 */
+            printf("parentPid = %d\n",getpid());
+            async_U3io_init();  //串口3异步方式初始化
+            while(1)
+            {
+                sleep(1);       //进程挂起，可被信号打断
+            }
+            //wait(NULL);
+    }
 
     /* 退出 */
     tcsetattr(Uart3.fd,TCSANOW,&Uart3.old_cfg);
